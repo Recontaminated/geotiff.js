@@ -34,6 +34,7 @@ Currently available functionality:
   * Subsetting via an image window or bounding box and selected bands
   * Reading of samples into separate arrays or a single pixel-interleaved array
   * Configurable tile/strip cache
+  * Configurable ICC profile cache to avoid redundant downloads of the same profile
   * Configurable Pool of workers to increase decoding efficiency
   * Utility functions for geospatial parameters (Bounding Box, Origin, Resolution)
   * Limited [bigTIFF](http://bigtiff.org/#FILE_FORMAT) support
@@ -423,6 +424,28 @@ try {
   }
 }
 ```
+
+### ICC Profile Caching
+
+GeoTIFF files, particularly Aperio SVS files, can contain large ICC color profiles (tag 34675) embedded within each level of the pyramid structure. This can cause redundant downloads of the same profile data multiple times, significantly increasing initial load times.
+
+geotiff.js provides a caching mechanism that can store and reuse these ICC profiles across different images within the same file, avoiding redundant downloads. To enable ICC profile caching, use the `cache` option when loading your GeoTIFF:
+
+```javascript
+// Enable caching for a remote URL
+const tiff = await fromUrl('path/to/file.tif', { cache: true });
+
+// Also works with other loading methods
+const tiff = await fromArrayBuffer(arrayBuffer, { cache: true });
+const tiff = await fromBlob(blob, { cache: true });
+```
+
+This caching mechanism is especially beneficial for:
+- Large microscopy slide images (Aperio SVS format)
+- Images with multiple pyramid levels containing the same ICC profile
+- Any situation where you need to reduce initial loading time and bandwidth usage
+
+The `cache` option also enables caching of image tiles, providing additional performance benefits for tiled GeoTIFF files.
 
 ### Writing GeoTIFFs (Beta Version)
 

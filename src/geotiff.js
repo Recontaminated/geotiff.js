@@ -324,12 +324,12 @@ class GeoTIFFBase {
 class GeoTIFF extends GeoTIFFBase {
   /**
    * @constructor
-   * @param {*} source The datasource to read from.
-   * @param {boolean} littleEndian Whether the image uses little endian.
-   * @param {boolean} bigTiff Whether the image uses bigTIFF conventions.
-   * @param {number} firstIFDOffset The numeric byte-offset from the start of the image
-   *                                to the first IFD.
-   * @param {GeoTIFFOptions} [options] further options.
+   * @param {(source.ArrayBufferSource|source.Remote|source.Custom|source.DataView)} source The data source from where to read the TIFF file.
+   * @param {boolean} littleEndian Whether the TIFF file is in little endian format.
+   * @param {boolean} bigTiff Whether the TIFF file is a BigTIFF file.
+   * @param {number} firstIFDOffset The numeric byte-offset from the start of the file to the first IFD.
+   * @param {object} [options] Further options.
+   * @param {boolean} [options.cache] Enable caching for higher performance.
    */
   constructor(source, littleEndian, bigTiff, firstIFDOffset, options = {}) {
     super();
@@ -337,9 +337,11 @@ class GeoTIFF extends GeoTIFFBase {
     this.littleEndian = littleEndian;
     this.bigTiff = bigTiff;
     this.firstIFDOffset = firstIFDOffset;
-    this.cache = options.cache || false;
+    this.cache = options.cache;
     this.ifdRequests = [];
     this.ghostValues = null;
+    // Add a cache for ICC profiles
+    this.iccProfileCache = new Map();
   }
 
   async getSlice(offset, size) {
@@ -396,6 +398,29 @@ class GeoTIFF extends GeoTIFFBase {
       const fieldTypeLength = getFieldTypeLength(fieldType);
       const valueOffset = i + (this.bigTiff ? 12 : 8);
 
+      // Check if this is an ICC profile and if we already have it cached
+      const isICCProfile = fieldTag === 34675; // 0x8773
+      let cacheKey = null;
+      
+      if (isICCProfile && this.cache) {
+        const actualOffset = dataSlice.readOffset(valueOffset);
+        const length = fieldTypeLength * typeCount;
+        cacheKey = `${actualOffset}-${length}`;
+        
+        // Check if we have this ICC profile in cache
+        if (this.iccProfileCache.has(cacheKey)) {
+          // Use cached ICC profile
+          value = this.iccProfileCache.get(cacheKey);
+          // write the tag's value to the file directory
+          const tagName = fieldTagNames[fieldTag];
+          if (tagName) {
+            fileDirectory[tagName] = value;
+          }
+          rawFileDirectory.set(fieldTag, value);
+          continue; // Skip to next tag
+        }
+      }
+
       // check whether the value is directly encoded in the tag or refers to a
       // different external byte range
       if (fieldTypeLength * typeCount <= (this.bigTiff ? 8 : 4)) {
@@ -421,6 +446,11 @@ class GeoTIFF extends GeoTIFFBase {
         value = fieldValues[0];
       } else {
         value = fieldValues;
+      }
+
+      // If this is an ICC profile, cache it
+      if (isICCProfile && this.cache && cacheKey) {
+        this.iccProfileCache.set(cacheKey, value);
       }
 
       // write the tags value to the file directory
@@ -691,12 +721,13 @@ export { MultiGeoTIFF };
  * @param {string} url The URL to access the image from
  * @param {object} [options] Additional options to pass to the source.
  *                           See {@link makeRemoteSource} for details.
+ * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<GeoTIFF>} The resulting GeoTIFF file.
  */
 export async function fromUrl(url, options = {}, signal) {
-  return GeoTIFF.fromSource(makeRemoteSource(url, options), signal);
+  return GeoTIFF.fromSource(makeRemoteSource(url, options), options, signal);
 }
 
 /**
@@ -704,73 +735,71 @@ export async function fromUrl(url, options = {}, signal) {
  * @param {BaseClient} client The client.
  * @param {object} [options] Additional options to pass to the source.
  *                           See {@link makeRemoteSource} for details.
+ * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<GeoTIFF>} The resulting GeoTIFF file.
  */
 export async function fromCustomClient(client, options = {}, signal) {
-  return GeoTIFF.fromSource(makeCustomSource(client, options), signal);
+  return GeoTIFF.fromSource(makeCustomSource(client, options), options, signal);
 }
 
 /**
  * Construct a new GeoTIFF from an
  * [ArrayBuffer]{@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer}.
  * @param {ArrayBuffer} arrayBuffer The data to read the file from.
+ * @param {object} [options] Additional options.
+ * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<GeoTIFF>} The resulting GeoTIFF file.
  */
-export async function fromArrayBuffer(arrayBuffer, signal) {
-  return GeoTIFF.fromSource(makeBufferSource(arrayBuffer), signal);
+export async function fromArrayBuffer(arrayBuffer, options = {}, signal) {
+  return GeoTIFF.fromSource(makeBufferSource(arrayBuffer), options, signal);
 }
 
 /**
- * Construct a GeoTIFF from a local file path. This uses the node
- * [filesystem API]{@link https://nodejs.org/api/fs.html} and is
- * not available on browsers.
- *
- * N.B. After the GeoTIFF has been completely processed it needs
- * to be closed but only if it has been constructed from a file.
+ * Construct a GeoTIFF from a local file path. (Node.js only)
  * @param {string} path The file path to read from.
+ * @param {object} [options] Additional options.
+ * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<GeoTIFF>} The resulting GeoTIFF file.
  */
-export async function fromFile(path, signal) {
-  return GeoTIFF.fromSource(makeFileSource(path), signal);
+export async function fromFile(path, options = {}, signal) {
+  return GeoTIFF.fromSource(makeFileSource(path), options, signal);
 }
 
 /**
- * Construct a GeoTIFF from an HTML
- * [Blob]{@link https://developer.mozilla.org/en-US/docs/Web/API/Blob} or
- * [File]{@link https://developer.mozilla.org/en-US/docs/Web/API/File}
- * object.
- * @param {Blob|File} blob The Blob or File object to read from.
+ * Construct a GeoTIFF from a File or Blob.
+ * @param {Blob} blob The File or Blob to read from.
+ * @param {object} [options] Additional options.
+ * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<GeoTIFF>} The resulting GeoTIFF file.
  */
-export async function fromBlob(blob, signal) {
-  return GeoTIFF.fromSource(makeFileReaderSource(blob), signal);
+export async function fromBlob(blob, options = {}, signal) {
+  return GeoTIFF.fromSource(makeFileReaderSource(blob), options, signal);
 }
 
 /**
- * Construct a MultiGeoTIFF from the given URLs.
- * @param {string} mainUrl The URL for the main file.
- * @param {string[]} overviewUrls An array of URLs for the overview images.
- * @param {Object} [options] Additional options to pass to the source.
- *                           See [makeRemoteSource]{@link module:source.makeRemoteSource}
- *                           for details.
+ * Creates a new MultiGeoTIFF from a main and overview URLs.
+ * @param {string} mainUrl The URL for the main GeoTIFF.
+ * @param {string[]} overviewUrls The URLs for the overview GeoTIFFs.
+ * @param {object} [options] Additional options to pass to the source.
+ *                           See {@link makeRemoteSource} for details.
+ * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<MultiGeoTIFF>} The resulting MultiGeoTIFF file.
  */
 export async function fromUrls(mainUrl, overviewUrls = [], options = {}, signal) {
-  const mainFile = await GeoTIFF.fromSource(makeRemoteSource(mainUrl, options), signal);
+  const mainFile = await GeoTIFF.fromSource(makeRemoteSource(mainUrl, options), options, signal);
   const overviewFiles = await Promise.all(
-    overviewUrls.map((url) => GeoTIFF.fromSource(makeRemoteSource(url, options))),
+    overviewUrls.map((url) => GeoTIFF.fromSource(makeRemoteSource(url, options), options, signal)),
   );
-
   return new MultiGeoTIFF(mainFile, overviewFiles);
 }
 
