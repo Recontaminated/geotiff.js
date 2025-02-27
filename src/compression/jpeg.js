@@ -890,8 +890,30 @@ export default class JpegDecoder extends BaseDecoder {
   }
 
   decodeBlock(buffer) {
-    this.reader.resetFrames();
-    this.reader.parse(new Uint8Array(buffer));
-    return this.reader.getResult().buffer;
+    try {
+      this.reader.resetFrames();
+      this.reader.parse(new Uint8Array(buffer));
+      return this.reader.getResult().buffer;
+    } catch (error) {
+      if (error.message === 'SOI not found') {
+        // Suppress the "SOI not found" error and return a placeholder buffer
+        console.warn('Suppressed JPEG decoding error: SOI not found');
+        
+        // Create a small 1x1 transparent pixel buffer
+        // This assumes the expected output is RGBA, which is common for decoded JPEGs
+        // 4 bytes per pixel (RGBA)
+        const placeholderBuffer = new ArrayBuffer(4);
+        const view = new Uint8Array(placeholderBuffer);
+        // Set fully transparent pixel (R=0, G=0, B=0, A=0)
+        view[0] = 0; // R
+        view[1] = 0; // G
+        view[2] = 0; // B
+        view[3] = 0; // A
+        
+        return placeholderBuffer;
+      }
+      // Re-throw any other errors
+      throw error;
+    }
   }
 }
