@@ -314,7 +314,7 @@ class GeoTIFFBase {
 
 /**
  * @typedef {Object} GeoTIFFOptions
- * @property {boolean} [cache=false] whether or not decoded tiles shall be cached.
+ * @property {boolean} [cache=true] whether or not decoded tiles and ICC profiles shall be cached.
  */
 
 /**
@@ -329,7 +329,7 @@ class GeoTIFF extends GeoTIFFBase {
    * @param {boolean} bigTiff Whether the TIFF file is a BigTIFF file.
    * @param {number} firstIFDOffset The numeric byte-offset from the start of the file to the first IFD.
    * @param {object} [options] Further options.
-   * @param {boolean} [options.cache] Enable caching for higher performance.
+   * @param {boolean} [options.cache=true] Enable caching for higher performance.
    */
   constructor(source, littleEndian, bigTiff, firstIFDOffset, options = {}) {
     super();
@@ -337,7 +337,7 @@ class GeoTIFF extends GeoTIFFBase {
     this.littleEndian = littleEndian;
     this.bigTiff = bigTiff;
     this.firstIFDOffset = firstIFDOffset;
-    this.cache = options.cache;
+    this.cache = options.cache !== false; // Default to true unless explicitly set to false
     this.ifdRequests = [];
     this.ghostValues = null;
     // Add a cache for ICC profiles
@@ -721,7 +721,7 @@ export { MultiGeoTIFF };
  * @param {string} url The URL to access the image from
  * @param {object} [options] Additional options to pass to the source.
  *                           See {@link makeRemoteSource} for details.
- * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
+ * @param {boolean} [options.cache=true] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<GeoTIFF>} The resulting GeoTIFF file.
@@ -735,7 +735,7 @@ export async function fromUrl(url, options = {}, signal) {
  * @param {BaseClient} client The client.
  * @param {object} [options] Additional options to pass to the source.
  *                           See {@link makeRemoteSource} for details.
- * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
+ * @param {boolean} [options.cache=true] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<GeoTIFF>} The resulting GeoTIFF file.
@@ -749,7 +749,7 @@ export async function fromCustomClient(client, options = {}, signal) {
  * [ArrayBuffer]{@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer}.
  * @param {ArrayBuffer} arrayBuffer The data to read the file from.
  * @param {object} [options] Additional options.
- * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
+ * @param {boolean} [options.cache=true] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<GeoTIFF>} The resulting GeoTIFF file.
@@ -762,7 +762,7 @@ export async function fromArrayBuffer(arrayBuffer, options = {}, signal) {
  * Construct a GeoTIFF from a local file path. (Node.js only)
  * @param {string} path The file path to read from.
  * @param {object} [options] Additional options.
- * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
+ * @param {boolean} [options.cache=true] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<GeoTIFF>} The resulting GeoTIFF file.
@@ -775,7 +775,7 @@ export async function fromFile(path, options = {}, signal) {
  * Construct a GeoTIFF from a File or Blob.
  * @param {Blob} blob The File or Blob to read from.
  * @param {object} [options] Additional options.
- * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
+ * @param {boolean} [options.cache=true] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<GeoTIFF>} The resulting GeoTIFF file.
@@ -790,7 +790,7 @@ export async function fromBlob(blob, options = {}, signal) {
  * @param {string[]} overviewUrls The URLs for the overview GeoTIFFs.
  * @param {object} [options] Additional options to pass to the source.
  *                           See {@link makeRemoteSource} for details.
- * @param {boolean} [options.cache=false] Whether to cache images and ICC profiles.
+ * @param {boolean} [options.cache=true] Whether to cache images and ICC profiles.
  * @param {AbortSignal} [signal] An AbortSignal that may be signalled if the request is
  *                               to be aborted
  * @returns {Promise<MultiGeoTIFF>} The resulting MultiGeoTIFF file.

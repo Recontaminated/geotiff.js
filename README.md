@@ -429,15 +429,21 @@ try {
 
 GeoTIFF files, particularly Aperio SVS files, can contain large ICC color profiles (tag 34675) embedded within each level of the pyramid structure. This can cause redundant downloads of the same profile data multiple times, significantly increasing initial load times.
 
-geotiff.js provides a caching mechanism that can store and reuse these ICC profiles across different images within the same file, avoiding redundant downloads. To enable ICC profile caching, use the `cache` option when loading your GeoTIFF:
+geotiff.js provides a caching mechanism that can store and reuse these ICC profiles across different images within the same file, avoiding redundant downloads. This caching is **enabled by default** for better performance, but can be disabled if needed:
 
 ```javascript
-// Enable caching for a remote URL
+// Caching is enabled by default
+const tiff = await fromUrl('path/to/file.tif');
+
+// Explicitly enable caching (not necessary, but shown for clarity)
 const tiff = await fromUrl('path/to/file.tif', { cache: true });
 
-// Also works with other loading methods
-const tiff = await fromArrayBuffer(arrayBuffer, { cache: true });
-const tiff = await fromBlob(blob, { cache: true });
+// Disable caching if needed
+const tiff = await fromUrl('path/to/file.tif', { cache: false });
+
+// Works with all loading methods
+const tiff = await fromArrayBuffer(arrayBuffer); // Caching enabled by default
+const tiff = await fromBlob(blob, { cache: false }); // Explicitly disabled
 ```
 
 This caching mechanism is especially beneficial for:
