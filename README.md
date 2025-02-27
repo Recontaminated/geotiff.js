@@ -453,6 +453,28 @@ This caching mechanism is especially beneficial for:
 
 The `cache` option also enables caching of image tiles, providing additional performance benefits for tiled GeoTIFF files.
 
+#### Monitoring ICC Profile Cache Activity
+
+To monitor ICC profile cache hits and misses during development or debugging, enable the logger:
+
+```javascript
+import { setLogger } from 'geotiff';
+
+// Use the console as logger to see cache activity
+setLogger(console);
+
+// Load your GeoTIFF
+const tiff = await fromUrl('path/to/file.tif');
+// Debug logs will show cache hits, misses, and stores
+```
+
+This will output debug messages in the console whenever an ICC profile is:
+- Found in the cache (`ICC cache hit`)
+- Not found in the cache (`ICC cache miss`)
+- Stored in the cache (`ICC cache store`)
+
+These logs can help you verify that caching is working properly and understand the performance benefits.
+
 ### Writing GeoTIFFs (Beta Version)
 
 You can create a binary representation of a GeoTIFF using `writeArrayBuffer`.

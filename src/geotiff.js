@@ -15,7 +15,7 @@ import { writeGeotiff } from './geotiffwriter.js';
 import * as globals from './globals.js';
 import * as rgb from './rgb.js';
 import { getDecoder, addDecoder } from './compression/index.js';
-import { setLogger } from './logging.js';
+import { setLogger, debug, info, warn, error } from './logging.js';
 
 export { globals };
 export { rgb };
@@ -401,17 +401,15 @@ class GeoTIFF extends GeoTIFFBase {
       // Check if this is an ICC profile and if we already have it cached
       const isICCProfile = fieldTag === 34675; // 0x8773
       let cacheKey = null;
-      
       if (isICCProfile && this.cache) {
         const actualOffset = dataSlice.readOffset(valueOffset);
         const length = fieldTypeLength * typeCount;
         cacheKey = `${actualOffset}-${length}`;
-        
         // Check if we have this ICC profile in cache
         if (this.iccProfileCache.has(cacheKey)) {
           // Use cached ICC profile
           value = this.iccProfileCache.get(cacheKey);
-          console.log(`ICC cache hit: ${cacheKey}`);
+          debug(`ICC cache hit: ${cacheKey}`);
           // write the tag's value to the file directory
           const tagName = fieldTagNames[fieldTag];
           if (tagName) {
@@ -420,7 +418,7 @@ class GeoTIFF extends GeoTIFFBase {
           rawFileDirectory.set(fieldTag, value);
           continue; // Skip to next tag
         } else {
-          console.log(`ICC cache miss: ${cacheKey}`);
+          debug(`ICC cache miss: ${cacheKey}`);
         }
       }
 
@@ -454,7 +452,7 @@ class GeoTIFF extends GeoTIFFBase {
       // If this is an ICC profile, cache it
       if (isICCProfile && this.cache && cacheKey) {
         this.iccProfileCache.set(cacheKey, value);
-        console.log(`ICC cache store: ${cacheKey}`);
+        debug(`ICC cache store: ${cacheKey}`);
       }
 
       // write the tags value to the file directory
