@@ -411,6 +411,7 @@ class GeoTIFF extends GeoTIFFBase {
         if (this.iccProfileCache.has(cacheKey)) {
           // Use cached ICC profile
           value = this.iccProfileCache.get(cacheKey);
+          console.log(`ICC cache hit: ${cacheKey}`);
           // write the tag's value to the file directory
           const tagName = fieldTagNames[fieldTag];
           if (tagName) {
@@ -418,6 +419,8 @@ class GeoTIFF extends GeoTIFFBase {
           }
           rawFileDirectory.set(fieldTag, value);
           continue; // Skip to next tag
+        } else {
+          console.log(`ICC cache miss: ${cacheKey}`);
         }
       }
 
@@ -451,6 +454,7 @@ class GeoTIFF extends GeoTIFFBase {
       // If this is an ICC profile, cache it
       if (isICCProfile && this.cache && cacheKey) {
         this.iccProfileCache.set(cacheKey, value);
+        console.log(`ICC cache store: ${cacheKey}`);
       }
 
       // write the tags value to the file directory
