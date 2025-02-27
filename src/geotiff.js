@@ -17,6 +17,15 @@ import * as rgb from './rgb.js';
 import { getDecoder, addDecoder } from './compression/index.js';
 import { setLogger, debug, info, warn, error } from './logging.js';
 
+// Generic ICC profile - small sRGB profile
+const GENERIC_ICC_PROFILE = new Uint8Array([
+  0, 0, 2, 28, 97, 112, 112, 108, 2, 32, 0, 0, 109, 110, 116, 114,
+  82, 71, 66, 32, 88, 89, 90, 32, 7, 220, 0, 1, 0, 25, 0, 3,
+  0, 41, 0, 57, 97, 99, 115, 112, 65, 80, 80, 76, 0, 0, 0, 0,
+  97, 112, 112, 108, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 246, 214, 0, 1, 0, 0, 0, 0, 211, 45
+]);
+
 export { globals };
 export { rgb };
 export { default as BaseDecoder } from './compression/basedecoder.js';
@@ -342,6 +351,8 @@ class GeoTIFF extends GeoTIFFBase {
     this.ghostValues = null;
     // Add a cache for ICC profiles
     this.iccProfileCache = new Map();
+    // Add generic ICC profile to cache with a special key
+    this.iccProfileCache.set('generic', GENERIC_ICC_PROFILE);
   }
 
   async getSlice(offset, size) {
@@ -400,26 +411,18 @@ class GeoTIFF extends GeoTIFFBase {
 
       // Check if this is an ICC profile and if we already have it cached
       const isICCProfile = fieldTag === 34675; // 0x8773
-      let cacheKey = null;
-      if (isICCProfile && this.cache) {
-        const actualOffset = dataSlice.readOffset(valueOffset);
-        const length = fieldTypeLength * typeCount;
-        cacheKey = `${actualOffset}-${length}`;
-        // Check if we have this ICC profile in cache
-        if (this.iccProfileCache.has(cacheKey)) {
-          // Use cached ICC profile
-          value = this.iccProfileCache.get(cacheKey);
-          debug(`ICC cache hit: ${cacheKey}`);
-          // write the tag's value to the file directory
-          const tagName = fieldTagNames[fieldTag];
-          if (tagName) {
-            fileDirectory[tagName] = value;
-          }
-          rawFileDirectory.set(fieldTag, value);
-          continue; // Skip to next tag
-        } else {
-          debug(`ICC cache miss: ${cacheKey}`);
+      if (isICCProfile) {
+        // Use generic ICC profile instead of the one from the file
+        debug('Using generic ICC profile instead of embedded one');
+        value = GENERIC_ICC_PROFILE;
+        
+        // write the tag's value to the file directory
+        const tagName = fieldTagNames[fieldTag];
+        if (tagName) {
+          fileDirectory[tagName] = value;
         }
+        rawFileDirectory.set(fieldTag, value);
+        continue; // Skip to next tag
       }
 
       // check whether the value is directly encoded in the tag or refers to a
@@ -447,12 +450,6 @@ class GeoTIFF extends GeoTIFFBase {
         value = fieldValues[0];
       } else {
         value = fieldValues;
-      }
-
-      // If this is an ICC profile, cache it
-      if (isICCProfile && this.cache && cacheKey) {
-        this.iccProfileCache.set(cacheKey, value);
-        debug(`ICC cache store: ${cacheKey}`);
       }
 
       // write the tags value to the file directory
